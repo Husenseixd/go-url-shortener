@@ -1,24 +1,25 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"math/rand"
 	"net/http"
-	"sync"
+	"os"
+
+	"github.com/redis/go-redis/v9"
 )
 
 var (
-	urlStore = make(map[string]string)
-	mu       sync.Mutex
-	letters  = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+	letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+	rdb     *redis.Client
 )
 
-func generateCode(n int) string {
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
-	}
-	return string(b)
+func init() {
+	rdb = redis.NewClient(&redis.Options{
+		Addr:     os.Getenv("REDIS_ADDR"),     // e.g. "us1-xxx.upstash.io:6379"
+		Password: os.Getenv("REDIS_PASSWORD"), // e.g. "yourpassword"
+	})
 }
 
 type shortenRequest struct {
@@ -29,6 +30,7 @@ type shortenResponse struct {
 	ShortURL string `json:"short_url"`
 }
 
+// Handler handles POST /api/shorten for Vercel serverless
 func Handler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -40,15 +42,24 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate a short code and store the mapping
 	code := generateCode(6)
-	mu.Lock()
-	urlStore[code] = req.URL
-	mu.Unlock()
+	ctx := context.Background()
+	err := rdb.Set(ctx, code, req.URL, 0).Err()
+	if err != nil {
+		http.Error(w, "Failed to store URL", http.StatusInternalServerError)
+		return
+	}
 
-	// Return the short URL (update with your actual domain)
 	shortURL := "https://" + r.Host + "/api/shorten/" + code
 	resp := shortenResponse{ShortURL: shortURL}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+func generateCode(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
 }
