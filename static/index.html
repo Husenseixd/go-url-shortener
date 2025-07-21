@@ -1,74 +1,100 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Go URL Shortener</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>URL Shortener</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #f7f7f7; margin: 0; padding: 0; }
-    .container { max-width: 400px; margin: 60px auto; background: #fff; padding: 2em; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-    h1 { text-align: center; color: #333; }
-    input[type="url"] { width: 100%; padding: 0.7em; margin-bottom: 1em; border: 1px solid #ccc; border-radius: 4px; }
-    button { width: 100%; padding: 0.7em; background: #007bff; color: #fff; border: none; border-radius: 4px; font-size: 1em; cursor: pointer; }
-    button:hover { background: #0056b3; }
-    .result { margin-top: 1.5em; text-align: center; }
-    .short-url { font-weight: bold; color: #007bff; }
-    .copy-btn { margin-left: 0.5em; padding: 0.3em 0.7em; font-size: 0.9em; }
-    .error { color: #d00; margin-top: 1em; text-align: center; }
+    body {
+      font-family: sans-serif;
+      background: linear-gradient(to bottom right, #eef2ff, #fdfbfb);
+      margin: 0;
+      padding: 2rem;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(8px);
+      border-radius: 12px;
+      padding: 2rem;
+      max-width: 600px;
+      margin: auto;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+    }
+    input {
+      width: 100%;
+      padding: 1rem;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+    button {
+      padding: 1rem 2rem;
+      font-size: 1rem;
+      background: linear-gradient(to right, #2563eb, #9333ea);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      margin-top: 1rem;
+      cursor: pointer;
+    }
+    #result {
+      margin-top: 1rem;
+      font-family: monospace;
+      font-size: 1rem;
+      color: #2563eb;
+    }
+    .error {
+      color: red;
+      margin-top: 1rem;
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Go URL Shortener</h1>
-    <form id="shorten-form">
-      <input type="url" id="long-url" placeholder="Enter a long URL" required />
-      <button type="submit">Shorten URL</button>
+  <div class="card">
+    <h2>🔗 Shorten Your URL</h2>
+    <p>Enter a long URL below to get a shortened version.</p>
+    <form id="urlForm">
+      <input type="url" id="urlInput" placeholder="https://example.com/very-long-url" required />
+      <button type="submit">Shorten</button>
     </form>
-    <div class="result" id="result" style="display:none;">
-      Short URL: <span class="short-url" id="short-url"></span>
-      <button class="copy-btn" id="copy-btn">Copy</button>
-    </div>
-    <div class="error" id="error" style="display:none;"></div>
+    <div class="error" id="errorMsg"></div>
+    <div id="result"></div>
   </div>
+
   <script>
-    const form = document.getElementById('shorten-form');
-    const longUrlInput = document.getElementById('long-url');
-    const resultDiv = document.getElementById('result');
-    const shortUrlSpan = document.getElementById('short-url');
-    const copyBtn = document.getElementById('copy-btn');
-    const errorDiv = document.getElementById('error');
+    document.getElementById("urlForm").addEventListener("submit", async function (e) {
+      e.preventDefault()
+      const url = document.getElementById("urlInput").value.trim()
+      const errorEl = document.getElementById("errorMsg")
+      const resultEl = document.getElementById("result")
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      resultDiv.style.display = 'none';
-      errorDiv.style.display = 'none';
-      const longUrl = longUrlInput.value;
-      try {
-        const res = await fetch('/shorten', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: longUrl })
-        });
-        if (!res.ok) {
-          throw new Error('Failed to shorten URL');
-        }
-        const data = await res.json();
-        shortUrlSpan.textContent = data.short_url;
-        shortUrlSpan.href = data.short_url;
-        resultDiv.style.display = 'block';
-      } catch (err) {
-        errorDiv.textContent = err.message;
-        errorDiv.style.display = 'block';
+      errorEl.textContent = ""
+      resultEl.textContent = ""
+
+      if (!url) {
+        errorEl.textContent = "Please enter a URL."
+        return
       }
-    });
 
-    copyBtn.addEventListener('click', () => {
-      const url = shortUrlSpan.textContent;
-      navigator.clipboard.writeText(url).then(() => {
-        copyBtn.textContent = 'Copied!';
-        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
-      });
-    });
+      try {
+        const res = await fetch("/shorten", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url })
+        })
+
+        if (!res.ok) {
+          const err = await res.json()
+          throw new Error(err.error || "Failed to shorten URL")
+        }
+
+        const data = await res.json()
+        resultEl.innerHTML = `Shortened URL: <a href="${data.short_url}" target="_blank">${data.short_url}</a>`
+      } catch (err) {
+        console.error(err)
+        errorEl.textContent = err.message || "Something went wrong"
+      }
+    })
   </script>
 </body>
-</html> 
+</html>
