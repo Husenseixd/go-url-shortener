@@ -57,11 +57,8 @@ func shortenHandler(w http.ResponseWriter, r *http.Request) {
 	urlStore[code] = req.URL
 	storeMu.Unlock()
 
-	host := r.Header.Get("Origin")
-	if host == "" {
-		host = "https://go-url-shortener-mhmmdertrk03-1332-huseyins-projects-2692823e.vercel.app"
-	}
-	resp := shortenResponse{ShortURL: host + "/" + code}
+	host := r.Host
+	resp := shortenResponse{ShortURL: "https://" + host + "/" + code}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
@@ -89,7 +86,6 @@ func corsMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
-		// Preflight isteği ise cevap verip çık
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
