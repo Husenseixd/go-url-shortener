@@ -78,22 +78,35 @@ func redirectHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, longURL, http.StatusFound)
 }
 
-func main() {
-	http.HandleFunc("/shorten", shortenHandler)
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Preflight isteği ise cevap verip çık
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func main() {
+	http.Handle("/shorten", corsMiddleware(http.HandlerFunc(shortenHandler)))
+	http.Handle("/", corsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			http.ServeFile(w, r, "static/index.html")
 			return
 		}
-		// If the path starts with /static/, serve static files
 		if len(r.URL.Path) > 8 && r.URL.Path[:8] == "/static/" {
 			http.ServeFile(w, r, r.URL.Path[1:])
 			return
 		}
-		// Otherwise, treat as a short code
 		redirectHandler(w, r)
-	})
+	})))
 
 	log.Println("URL shortener running on http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
