@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -44,8 +45,8 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 
 	code := generateCode(6)
 	ctx := context.Background()
-	err := rdb.Set(ctx, code, req.URL, 0).Err()
-	if err != nil {
+	if err := rdb.Set(ctx, code, req.URL, 0).Err(); err != nil {
+		log.Println("Redis SET error:", err)
 		http.Error(w, "Failed to store URL", http.StatusInternalServerError)
 		return
 	}
