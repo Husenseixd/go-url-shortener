@@ -51,7 +51,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shortURL := "https://" + r.Host + "/api/shorten/" + code
+	shortURL := "https://" + r.Host + "/" + code
 	resp := shortenResponse{ShortURL: shortURL}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
