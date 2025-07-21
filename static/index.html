@@ -150,13 +150,16 @@
     const copyBtn = document.getElementById('copy-btn');
     const errorDiv = document.getElementById('error');
 
+    const isVercel = window.location.hostname.endsWith('.vercel.app');
+    const apiEndpoint = isVercel ? '/api/shorten' : '/shorten';
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       resultDiv.style.display = 'none';
       errorDiv.style.display = 'none';
       const longUrl = longUrlInput.value;
       try {
-        const res = await fetch('/shorten', {
+        const res = await fetch(apiEndpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: longUrl })

@@ -57,7 +57,12 @@ func shortenHandler(w http.ResponseWriter, r *http.Request) {
 	urlStore[code] = req.URL
 	storeMu.Unlock()
 
-	resp := shortenResponse{ShortURL: "http://localhost:8080/" + code}
+	host := r.Header.Get("Origin")
+	if host == "" {
+		host = "https://go-url-shortener-mhmmdertrk03-1332-huseyins-projects-2692823e.vercel.app"
+	}
+	resp := shortenResponse{ShortURL: host + "/" + code}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
