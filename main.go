@@ -1,23 +1,23 @@
 package main
 
 import (
+	"crypto/rand"
 	"encoding/json"
+	"io"
 	"log"
-	"math/rand"
 	"net/http"
 	"sync"
 )
 
-var (
-	urlStore = make(map[string]string)
-	storeMu  sync.RWMutex
-	letters  = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-)
+const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 func generateCode(n int) string {
-	b := make([]rune, n)
+	b := make([]byte, n)
+	if _, err := io.ReadFull(rand.Reader, b); err != nil {
+		panic(err) // prod'da logla + 500 dön
+	}
 	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
+		b[i] = letters[int(b[i])%len(letters)]
 	}
 	return string(b)
 }
@@ -25,23 +25,28 @@ func generateCode(n int) string {
 type shortenRequest struct {
 	URL string `json:"url"`
 }
-
 type shortenResponse struct {
 	ShortURL string `json:"short_url"`
 }
 
+var (
+	urlStore = make(map[string]string)
+	storeMu  sync.RWMutex
+)
+
 func shortenHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	var req shortenRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.URL == "" {
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Generate unique code
+	var req shortenRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.URL == "" {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	// unique code
 	var code string
 	for {
 		code = generateCode(6)
@@ -52,63 +57,61 @@ func shortenHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-
 	storeMu.Lock()
 	urlStore[code] = req.URL
 	storeMu.Unlock()
 
-	host := r.Host
-	resp := shortenResponse{ShortURL: "https://" + host + "/" + code}
-
+	resp := shortenResponse{ShortURL: "https://" + r.Host + "/" + code}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
 
 func redirectHandler(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Path[1:]
-	if code == "" {
-		http.NotFound(w, r)
-		return
-	}
 	storeMu.RLock()
-	longURL, exists := urlStore[code]
+	longURL, ok := urlStore[code]
 	storeMu.RUnlock()
-	if !exists {
+	if !ok {
 		http.NotFound(w, r)
 		return
 	}
 	http.Redirect(w, r, longURL, http.StatusFound)
 }
 
-func corsMiddleware(next http.Handler) http.Handler {
+func cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-
 		next.ServeHTTP(w, r)
 	})
 }
 
-func main() {
-	http.Handle("/shorten", corsMiddleware(http.HandlerFunc(shortenHandler)))
-	http.Handle("/", corsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" {
-			http.ServeFile(w, r, "static/index.html")
-			return
-		}
-		if len(r.URL.Path) > 8 && r.URL.Path[:8] == "/static/" {
-			http.ServeFile(w, r, r.URL.Path[1:])
-			return
-		}
-		redirectHandler(w, r)
-	})))
+func rootHandler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/" {
+		http.ServeFile(w, r, "static/index.html")
+		return
+	}
+	redirectHandler(w, r)
+}
 
-	log.Println("URL shortener running on http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+func main() {
+	mux := http.NewServeMux()
+
+	// API
+	mux.Handle("/shorten", cors(http.HandlerFunc(shortenHandler)))
+
+	// Statik dosyalar
+	fs := http.FileServer(http.Dir("static"))
+	mux.Handle("/static/", cors(http.StripPrefix("/static/", fs)))
+
+	// Kök + redirect
+	mux.Handle("/", cors(http.HandlerFunc(rootHandler)))
+
+	log.Println("HTTPS up on https://localhost:8080")
+	log.Fatal(http.ListenAndServeTLS(":8080", "localhost.pem", "localhost-key.pem", mux))
 }

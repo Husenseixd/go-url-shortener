@@ -142,52 +142,53 @@
     </div>
     <div class="error" id="error"></div>
   </div>
-  <script>
-    const form = document.getElementById('shorten-form');
-    const longUrlInput = document.getElementById('long-url');
-    const resultDiv = document.getElementById('result');
-    const shortUrlLink = document.getElementById('short-url');
-    const copyBtn = document.getElementById('copy-btn');
-    const errorDiv = document.getElementById('error');
 
-    const isVercel = window.location.hostname.endsWith('.vercel.app');
-    const apiEndpoint = isVercel ? '/api/shorten' : '/shorten';
+  <script>
+    'use strict';
+
+    const form        = document.getElementById('shorten-form');
+    const longUrlInput = document.getElementById('long-url');
+    const resultDiv   = document.getElementById('result');
+    const shortUrlLink = document.getElementById('short-url');
+    const copyBtn     = document.getElementById('copy-btn');
+    const errorDiv    = document.getElementById('error');
+
+    /* 🔧  tek değişiklik burada */
+    const apiEndpoint = `${location.origin}/shorten`;
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       resultDiv.style.display = 'none';
-      errorDiv.style.display = 'none';
-      const longUrl = longUrlInput.value;
+      errorDiv.style.display  = 'none';
+
       try {
         const res = await fetch(apiEndpoint, {
-          method: 'POST',
+          method : 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: longUrl })
+          body   : JSON.stringify({ url: longUrlInput.value.trim() })
         });
-        if (!res.ok) {
-          throw new Error('Failed to shorten URL');
-        }
+
+        if (!res.ok) throw new Error('Failed to shorten URL');
+
         const data = await res.json();
         shortUrlLink.textContent = data.short_url;
-        shortUrlLink.href = data.short_url;
-        resultDiv.style.display = 'flex';
+        shortUrlLink.href        = data.short_url;
+        resultDiv.style.display  = 'flex';
       } catch (err) {
         errorDiv.textContent = err.message;
         errorDiv.style.display = 'block';
       }
     });
 
-    longUrlInput.addEventListener('keydown', function(e) {
-      if (e.ctrlKey && e.key === 'Enter') {
-        form.requestSubmit();
-      }
+    longUrlInput.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key === 'Enter') form.requestSubmit();
     });
 
     copyBtn.addEventListener('click', () => {
       const url = shortUrlLink.textContent;
       navigator.clipboard.writeText(url).then(() => {
         copyBtn.textContent = 'Copied!';
-        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+        setTimeout(() => copyBtn.textContent = 'Copy', 1500);
       });
     });
   </script>
